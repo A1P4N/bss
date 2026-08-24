@@ -30,3 +30,7 @@ data/
 # Credentials
 **/credentials*
 **/secrets*
+
+# OpenCode config
+opencode.json
+.opencode/commands/
