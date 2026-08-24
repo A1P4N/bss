@@ -1,0 +1,27 @@
+@startuml Sequence_Replay
+title BSS — Последовательность работы Replay
+autonumber
+actor "Оператор" as Operator
+participant "Replay CLI" as CLI
+participant "Replay Service" as Replay
+participant "Dataset Reader" as Reader
+participant "Replay Clock" as Clock
+participant "Analysis Engine" as Analysis
+participant "Event Stream" as Events
+participant "State / Audit" as State
+Operator -> CLI : Запуск replay(dataset_id, version)
+CLI -> Replay : start(run configuration)
+Replay -> Replay : Создать run_id
+Replay -> Reader : Открыть immutable Dataset
+Replay -> Clock : Инициализировать replay time
+loop По каждой свече
+    Reader -> Replay : Следующая candle
+    Replay -> Clock : Установить event_time
+    Replay -> Analysis : CANDLE_CLOSED
+    Analysis -> Events : Опубликовать immutable event
+    Events -> State : Обновить state / audit
+end
+Replay -> Replay : Завершить run
+Replay --> CLI : Replay completed
+CLI --> Operator : Результат replay
+@enduml

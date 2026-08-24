@@ -1,0 +1,28 @@
+@startuml C4_Component_Loader
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+LAYOUT_TOP_DOWN()
+title BSS — C4 Component — Historical Data Loader
+Container_Boundary(loader, "Historical Data Loader") {
+Component(cli, "Loader CLI", "CLI", "Команды загрузки, validation, recovery и status")
+Component(service, "Loader Service", "Application Service", "Оркестрирует жизненный цикл загрузки")
+Component(source, "Historical Source Adapter", "Adapter", "Получает данные из внешнего источника")
+Component(parser, "Parser", "Domain service", "Разбирает ответ источника")
+Component(normalizer, "Normalizer", "Domain service", "Приводит данные к канонической модели")
+Component(validator, "Validator", "Domain service", "Проверяет целостность Dataset")
+Component(checkpoint, "Checkpoint Manager", "Infrastructure", "Сохраняет прогресс и позволяет resume")
+Component(retry, "Retry / Rate Limiter", "Infrastructure", "Ограничивает запросы и повторяет временные ошибки")
+Component(metadata, "Dataset Metadata", "Repository", "Хранит dataset_id, version и metadata")
+Component(storage, "Raw / Dataset Storage", "Repository", "Хранит raw и normalized данные")
+}
+Rel(cli, service, "Вызывает")
+Rel(service, source, "Запрашивает данные")
+Rel(service, parser, "Передаёт ответы")
+Rel(parser, normalizer, "Нормализует")
+Rel(normalizer, validator, "Проверяет")
+Rel(service, checkpoint, "Читает / пишет")
+Rel(source, retry, "Использует")
+Rel(service, metadata, "Создаёт metadata")
+Rel(service, storage, "Записывает данные")
+Rel(validator, metadata, "Фиксирует результат")
+SHOW_LEGEND()
+@enduml

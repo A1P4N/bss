@@ -1,0 +1,68 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "bss-build",
+  "subagent_depth": 1,
+  "share": "manual",
+  "agent": {
+    "bss-build": {
+      "description": "Основной coding agent для BSS",
+      "mode": "primary",
+      "prompt": "Работай как senior software engineer над BSS. Сначала прочитай AGENTS.md и релевантные документы docs/specifications. Реализуй задачу минимальным вертикальным срезом, добавь тесты и не нарушай границы Loader/Replay/Analysis Engine. Не придумывай business rules для TBD.",
+      "permission": {
+        "edit": "allow",
+        "bash": "allow"
+      }
+    },
+    "bss-plan": {
+      "description": "Архитектурное планирование BSS без изменений",
+      "mode": "primary",
+      "prompt": "Работай как system architect BSS. Изучи AGENTS.md, текущий repository и релевантные документы. Выдай план, границы модулей, тесты, риски и TBD. Файлы не изменяй.",
+      "permission": {
+        "edit": "deny",
+        "bash": "deny"
+      }
+    },
+    "bss-reviewer": {
+      "description": "Строгий code review BSS",
+      "mode": "subagent",
+      "prompt": "Проведи review изменений BSS. Проверяй ЧТЗ, Event Model, acceptance criteria и AGENTS.md. Особое внимание: separation Loader/Replay/Analysis, determinism, no look-ahead, UTC, idempotency, recovery, event envelope, security и tests. Не изменяй файлы.",
+      "permission": {
+        "edit": "deny",
+        "bash": "deny"
+      }
+    },
+    "bss-tester": {
+      "description": "Проверка и диагностика тестов BSS",
+      "mode": "subagent",
+      "prompt": "Проведи focused verification BSS. Изучи AGENTS.md, найди релевантные tests, запусти их и полный suite, если разумно. Диагностируй failures. Не изменяй файлы.",
+      "permission": {
+        "edit": "deny",
+        "bash": "allow"
+      }
+    }
+  },
+  "command": {
+    "bss-plan": {
+      "description": "Спланировать задачу BSS",
+      "agent": "bss-plan",
+      "template": "Проанализируй задачу: $ARGUMENTS. Прочитай AGENTS.md и релевантные docs/specifications. Выдай контекст, затронутые модули, пошаговый план, tests, риски и TBD. Файлы не изменяй."
+    },
+    "bss-implement": {
+      "description": "Реализовать задачу BSS",
+      "agent": "bss-build",
+      "template": "Реализуй задачу: $ARGUMENTS. Сначала изучи AGENTS.md, текущий repository и релевантные документы. Работай минимальным vertical slice, добавь tests, не нарушай архитектурные границы и не закрывай TBD догадками. После реализации запусти проверки."
+    },
+    "bss-review": {
+      "description": "Проверить текущие изменения BSS",
+      "agent": "bss-reviewer",
+      "subtask": true,
+      "template": "Проведи строгий review текущих изменений BSS. Проверь AGENTS.md, ЧТЗ, acceptance criteria, tests, security, determinism и no look-ahead. Findings классифицируй P0/P1/P2/P3."
+    },
+    "bss-test": {
+      "description": "Запустить и диагностировать тесты BSS",
+      "agent": "bss-tester",
+      "subtask": true,
+      "template": "Проведи verification для задачи: $ARGUMENTS. Найди релевантные тесты, запусти focused tests и полный suite, если разумно. Сообщи команды, результаты и root cause failures."
+    }
+  }
+}

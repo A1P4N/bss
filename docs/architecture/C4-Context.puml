@@ -1,0 +1,13 @@
+@startuml C4_Context
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+LAYOUT_TOP_DOWN()
+title BSS — C4 Context
+Person(operator, "Оператор", "Запускает загрузку, replay и диагностику")
+System(bss, "BSS Structural Monitoring Agent", "Анализ исторических и live рыночных данных")
+System_Ext(source, "Исторический источник данных", "Биржа / провайдер исторических данных")
+System_Ext(tiger, "TigerTrade", "Внешняя торговая/рыночная система")
+Rel(operator, bss, "Управляет")
+Rel(source, bss, "Исторические данные")
+Rel(bss, tiger, "События / интеграция")
+SHOW_LEGEND()
+@enduml

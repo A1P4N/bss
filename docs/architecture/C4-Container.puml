@@ -1,0 +1,29 @@
+@startuml C4_Container
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+LAYOUT_TOP_DOWN()
+title BSS — C4 Container
+Person(operator, "Оператор", "Управляет загрузкой и replay")
+System_Boundary(bss, "BSS") {
+Container(loader, "Historical Data Loader", "Python", "Загружает, нормализует и валидирует исторические данные")
+Container(raw, "Raw Storage", "Файлы", "Исходные данные")
+Container(dataset, "Normalized Dataset", "Файлы", "Версионированный нормализованный набор данных")
+Container(replay, "Replay Engine", "Python", "Потоково воспроизводит исторические данные")
+Container(analysis, "Analysis Engine", "Python", "Единый движок анализа для Replay и Live")
+Container(events, "Event Stream", "Файлы/шина", "Неизменяемые события анализа")
+Container(state, "State / Audit", "Файлы", "Текущее состояние и аудит")
+Container(push, "Push Projection", "Python", "Проекция событий для внешнего потребителя")
+}
+System_Ext(source, "Исторический источник", "API / provider")
+System_Ext(tiger, "TigerTrade", "Внешняя система")
+Rel(operator, loader, "Запускает / контролирует")
+Rel(source, loader, "Получает исторические данные")
+Rel(loader, raw, "Сохраняет raw")
+Rel(loader, dataset, "Формирует Dataset")
+Rel(dataset, replay, "Читает")
+Rel(replay, analysis, "CANDLE_CLOSED")
+Rel(analysis, events, "Публикует события")
+Rel(events, state, "Обновляет состояние")
+Rel(events, push, "Формирует projection")
+Rel(push, tiger, "Передаёт события")
+SHOW_LEGEND()
+@enduml

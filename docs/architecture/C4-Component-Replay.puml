@@ -1,0 +1,21 @@
+@startuml C4_Component_Replay
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+LAYOUT_TOP_DOWN()
+title BSS — C4 Component — Replay
+Container_Boundary(replay, "Replay Engine") {
+Component(service, "Replay Service", "Application Service", "Управляет replay run")
+Component(reader, "Dataset Reader", "Infrastructure", "Потоково читает Dataset")
+Component(clock, "Replay Clock", "Domain service", "Обеспечивает детерминированное время replay")
+Component(emitter, "Event Emitter", "Application", "Формирует CANDLE_CLOSED")
+Component(runmeta, "Replay Run Metadata", "Repository", "run_id и версии Dataset/Engine/Configuration")
+}
+Container(analysis, "Analysis Engine", "Python", "Единый движок анализа")
+Rel(service, reader, "Читает Dataset")
+Rel(service, clock, "Управляет временем")
+Rel(reader, emitter, "Передаёт candles")
+Rel(clock, emitter, "Определяет event_time")
+Rel(emitter, analysis, "CANDLE_CLOSED")
+Rel(service, runmeta, "Фиксирует run")
+Rel(runmeta, analysis, "engine/config versions")
+SHOW_LEGEND()
+@enduml

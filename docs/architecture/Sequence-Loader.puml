@@ -1,0 +1,52 @@
+@startuml Sequence_Loader
+title BSS — Последовательность работы Historical Data Loader
+autonumber
+actor "Оператор" as Operator
+participant "Loader CLI" as CLI
+participant "Loader Service" as Loader
+participant "Source Adapter" as Source
+participant "Raw Storage" as Raw
+participant "Parser" as Parser
+participant "Normalizer" as Normalizer
+participant "Validator" as Validator
+participant "Dataset Storage" as Dataset
+participant "Checkpoint Manager" as Checkpoint
+participant "Metadata" as Metadata
+Operator -> CLI : Запуск загрузки
+CLI -> Loader : download(symbol, timeframe, range)
+Loader -> Metadata : Создать/получить job
+Loader -> Checkpoint : Загрузить checkpoint
+loop По каждому chunk
+    Loader -> Source : Запрос исторических данных
+    alt Успешный ответ
+        Source --> Loader : Raw response
+        Loader -> Raw : Сохранить raw chunk
+        Loader -> Parser : parse(raw chunk)
+        Parser --> Loader : Parsed candles
+        Loader -> Normalizer : normalize(candles)
+        Normalizer --> Loader : Normalized candles
+        Loader -> Validator : validate(chunk)
+        Validator --> Loader : Результат validation
+        alt Chunk корректен
+            Loader -> Dataset : Записать normalized chunk
+            Loader -> Checkpoint : Сохранить progress
+        else Ошибка данных
+            Loader -> Metadata : DATA_INTEGRITY_GAP / error
+        end
+    else Временная ошибка
+        Loader -> Source : Retry с backoff
+    end
+end
+Loader -> Validator : Полная validation Dataset
+Validator --> Loader : Dataset validation result
+alt Dataset корректен
+    Loader -> Metadata : Статус READY
+    Loader -> Checkpoint : Финализировать job
+    Loader --> CLI : Dataset READY
+    CLI --> Operator : Успешное завершение
+else Dataset некорректен
+    Loader -> Metadata : Статус FAILED
+    Loader --> CLI : Ошибка
+    CLI --> Operator : Отчёт об ошибке
+end
+@enduml
