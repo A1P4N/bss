@@ -48,11 +48,11 @@ class TestTimeframeFromString:
             Timeframe.from_string("d1")
 
     def test_invalid_raises(self) -> None:
-        with pytest.raises(ValueError, match="M13"):
+        with pytest.raises(ValueError, match="Unknown timeframe"):
             Timeframe.from_string("M13")
 
     def test_empty_raises(self) -> None:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Unknown timeframe"):
             Timeframe.from_string("")
 
 

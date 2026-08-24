@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from enum import Enum
 from typing import Optional
 
@@ -11,8 +10,9 @@ class Timeframe(str, Enum):
     """Canonical BSS timeframes.
 
     Values follow the exchange convention: D1, H4, H1, M15.
-    Additional intraday values (e.g. M5, M1) are allowed for
-    intrabar ambiguity resolution (see ЧТЗ §4.2).
+    Custom intraday values (M5, H2, M1) are NOT supported as enum
+    members in this version. For intrabar ambiguity resolution
+    (ЧТЗ §4.2) a separate parser will be added in a later slice.
     """
 
     D1 = "D1"
@@ -26,21 +26,14 @@ class Timeframe(str, Enum):
     def from_string(cls, value: str) -> Timeframe:
         """Parse a timeframe string, raising ValueError on invalid input.
 
-        Supports canonical names (D1, H4, H1, M15) and custom
-        numerical formats (e.g. M5, H2, M1).
+        Supports only canonical names: D1, H4, H1, M15 (case-sensitive).
         """
         canonical = {tf.value: tf for tf in cls}
         if value in canonical:
             return canonical[value]
-
-        if re.fullmatch(r"\d+[mhdMH]", value):
-            # custom intraday timeframe, keep as raw string
-            pass
-
         raise ValueError(
             f"Unknown timeframe: {value!r}. "
-            f"Expected one of {[tf.value for tf in cls]} "
-            f"or a custom format like 'M5', 'H2'."
+            f"Expected one of {[tf.value for tf in cls]}."
         )
 
     # ── properties ─────────────────────────────────────────────

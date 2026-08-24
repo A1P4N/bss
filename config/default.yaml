@@ -1,0 +1,65 @@
+# ═══════════════════════════════════════════════════════════════
+# BSS — default configuration
+# ═══════════════════════════════════════════════════════════════
+
+# ── Instruments ──────────────────────────────────────────────
+# Symbols to monitor / load.
+symbols:
+  - SOLUSDT
+  - BTCUSDT
+  - ETHUSDT
+  - BNBUSDT
+  - XRPUSDT
+
+# ── Timeframes ──────────────────────────────────────────────
+# Core timeframes (must include D1, H4, H1, M15 for strategy).
+# Additional lower timeframes can be added for intrabar resolution.
+timeframes:
+  - D1
+  - H4
+  - H1
+  - M15
+
+# ── Historical data source ──────────────────────────────────
+source:
+  name: binance          # source adapter name
+  base_url: "https://api.binance.com"
+  rate_limit:
+    requests_per_second: 5
+    max_parallel_requests: 4
+  retry:
+    max_attempts: 5
+    initial_delay_seconds: 1.0
+    max_delay_seconds: 60.0
+    backoff_factor: 2.0
+
+# ── History period ──────────────────────────────────────────
+# Period for the first dataset download.
+# Set to null to use the maximum available range.
+history:
+  start: null   # e.g. "2024-01-01"
+  end: null     # e.g. "2026-01-01"
+
+# ── Storage ─────────────────────────────────────────────────
+storage:
+  base_path: "data"
+  raw_subdir: "raw"
+  normalized_subdir: "normalized"
+  metadata_subdir: "metadata"
+  checkpoint_subdir: "checkpoints"
+  events_subdir: "events/replay"
+  format:
+    raw: "jsonl"
+    normalized: "parquet"
+    metadata: "json"
+    events: "jsonl"
+
+# ── Dataset ─────────────────────────────────────────────────
+dataset:
+  loader_version: "0.1.0"
+  schema_version: "0.2"
+
+# ── Logging ─────────────────────────────────────────────────
+logging:
+  level: "INFO"
+  format: "structured"   # structured | plain

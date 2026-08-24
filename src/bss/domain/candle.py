@@ -11,6 +11,17 @@ from .identifiers import CandleId
 from .timeframe import Timeframe
 
 
+def _parse_utc(iso_str: str) -> datetime:
+    """Parse an ISO 8601 string and convert to UTC.
+
+    Raises ValueError if the string lacks timezone info.
+    """
+    dt = datetime.fromisoformat(iso_str)
+    if dt.tzinfo is None:
+        raise ValueError("timestamps must be timezone-aware")
+    return dt.astimezone(timezone.utc)
+
+
 @dataclasses.dataclass(frozen=True)
 class Candle:
     """A single normalized OHLCV candle.
@@ -19,7 +30,7 @@ class Candle:
     The candle is immutable — once created its fields never change.
     """
 
-    candle_id: str
+    candle_id: CandleId
     instrument_id: str
     symbol: str
     timeframe: Timeframe
@@ -66,16 +77,22 @@ class Candle:
     # ── factory helpers ────────────────────────────────────────
 
     @staticmethod
-    def build_candle_id(symbol: str, timeframe: Timeframe, open_time: datetime) -> str:
-        """Deterministic candle ID based on symbol, timeframe and open time."""
-        return f"cnd_{symbol}_{timeframe.value}_{open_time.strftime('%Y%m%dT%H%M%S')}"
+    def build_candle_id(symbol: str, timeframe: Timeframe, open_time: datetime) -> CandleId:
+        """Deterministic candle ID based on symbol, timeframe and open time.
+
+        Uses ISO 8601 with microseconds for global uniqueness
+        (see Event Model v0.2 §2.1 — event_id must be globally unique).
+        """
+        ts = open_time.isoformat()
+        return CandleId(f"cnd_{symbol}_{timeframe.value}_{ts}")
 
     # ── serialisation ──────────────────────────────────────────
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to a JSON-compatible dictionary."""
         return {
-            "candle_id": self.candle_id,
+            "candle_id": str(self.candle_id),
+            "instrument_id": self.instrument_id,
             "instrument_id": self.instrument_id,
             "symbol": self.symbol,
             "timeframe": self.timeframe.value,
@@ -92,12 +109,12 @@ class Candle:
     def from_dict(cls, data: Dict[str, Any]) -> Candle:
         """Deserialize from a dictionary (produced by *to_dict*)."""
         return cls(
-            candle_id=data["candle_id"],
+            candle_id=CandleId(data["candle_id"]),
             instrument_id=data["instrument_id"],
             symbol=data["symbol"],
             timeframe=Timeframe.from_string(data["timeframe"]),
-            open_time=datetime.fromisoformat(data["open_time"]).replace(tzinfo=timezone.utc),
-            close_time=datetime.fromisoformat(data["close_time"]).replace(tzinfo=timezone.utc),
+            open_time=_parse_utc(data["open_time"]),
+            close_time=_parse_utc(data["close_time"]),
             open=Decimal(data["open"]),
             high=Decimal(data["high"]),
             low=Decimal(data["low"]),

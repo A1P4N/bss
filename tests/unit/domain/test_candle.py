@@ -9,13 +9,13 @@ from decimal import Decimal
 import pytest
 
 from bss.domain import Candle, Timeframe
-from bss.domain.candle import Candle
+from bss.domain.identifiers import CandleId
 
 
 def _make_candle(**overrides: object) -> Candle:
     """Helper: create a valid default candle and override fields."""
     params = dict(
-        candle_id="cnd_SOLUSDT_M15_20250101T000000",
+        candle_id=CandleId("cnd_SOLUSDT_M15_2025-01-01T00:00:00+00:00"),
         instrument_id="inst_sol_usdt",
         symbol="SOLUSDT",
         timeframe=Timeframe.M15,
@@ -46,7 +46,8 @@ class TestCandleCreation:
 
     def test_candle_id_set(self) -> None:
         c = _make_candle()
-        assert c.candle_id.startswith("cnd_")
+        assert str(c.candle_id).startswith("cnd_")
+        assert isinstance(c.candle_id, CandleId)
 
     def test_instrument_id_set(self) -> None:
         c = _make_candle(instrument_id="inst_test")
@@ -178,6 +179,45 @@ class TestCandleSerialization:
         assert isinstance(c2.open, Decimal)
         assert isinstance(c2.volume, Decimal)
 
+    def test_from_dict_timezone_conversion(self) -> None:
+        """Non-UTC timezone is properly converted to UTC."""
+        d = {
+            "candle_id": "cnd_test_M15_2025-01-01T00:00:00+00:00",
+            "instrument_id": "inst_test",
+            "symbol": "TEST",
+            "timeframe": "M15",
+            "open_time": "2025-01-01T00:00:00+03:00",
+            "close_time": "2025-01-01T00:15:00+03:00",
+            "open": "100.0",
+            "high": "105.0",
+            "low": "99.5",
+            "close": "104.2",
+            "volume": "1000.0",
+        }
+        c = Candle.from_dict(d)
+        assert c.open_time.tzinfo == timezone.utc
+        assert c.open_time.hour == 21  # 00:00+03:00 = 21:00 UTC previous day
+        assert c.open_time.day == 31  # 2024-12-31
+        assert c.open_time.month == 12
+
+    def test_from_dict_naive_raises(self) -> None:
+        """Naive datetime in dict raises ValueError."""
+        d = {
+            "candle_id": "cnd_test_M15_2025-01-01T00:00:00+00:00",
+            "instrument_id": "inst_test",
+            "symbol": "TEST",
+            "timeframe": "M15",
+            "open_time": "2025-01-01T00:00:00",
+            "close_time": "2025-01-01T00:15:00+00:00",
+            "open": "100.0",
+            "high": "105.0",
+            "low": "99.5",
+            "close": "104.2",
+            "volume": "1000.0",
+        }
+        with pytest.raises(ValueError, match="timezone-aware"):
+            Candle.from_dict(d)
+
 
 class TestBuildCandleId:
     """Deterministic candle ID generation."""
@@ -185,7 +225,8 @@ class TestBuildCandleId:
     def test_format(self) -> None:
         ts = datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
         cid = Candle.build_candle_id("SOLUSDT", Timeframe.M15, ts)
-        assert cid == "cnd_SOLUSDT_M15_20250101T000000"
+        assert isinstance(cid, CandleId)
+        assert str(cid) == "cnd_SOLUSDT_M15_2025-01-01T00:00:00+00:00"
 
     def test_deterministic(self) -> None:
         ts = datetime(2025, 6, 15, 10, 30, 0, tzinfo=timezone.utc)
