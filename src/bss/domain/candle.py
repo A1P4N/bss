@@ -93,7 +93,6 @@ class Candle:
         return {
             "candle_id": str(self.candle_id),
             "instrument_id": self.instrument_id,
-            "instrument_id": self.instrument_id,
             "symbol": self.symbol,
             "timeframe": self.timeframe.value,
             "open_time": self.open_time.isoformat(),
