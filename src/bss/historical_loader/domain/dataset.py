@@ -9,22 +9,15 @@ References:
 from __future__ import annotations
 
 import dataclasses
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, Tuple
 
 from bss.domain.candle import Candle
 from bss.domain.identifiers import DatasetId, DatasetVersion
+from bss.domain.time import ensure_utc, parse_utc
 from bss.domain.time_range import TimeRange
 from bss.domain.timeframe import Timeframe
-
-
-def _parse_utc(iso_str: str) -> datetime:
-    """Parse ISO 8601 and convert to UTC (requires tz-aware input)."""
-    dt = datetime.fromisoformat(iso_str)
-    if dt.tzinfo is None:
-        raise ValueError("timestamps must be timezone-aware")
-    return dt.astimezone(timezone.utc)
 
 
 class DatasetStatus(str, Enum):
@@ -105,8 +98,7 @@ class DatasetMetadata:
             raise ValueError("timeframes must be sorted by value")
 
         # --- time ---
-        if self.created_at.tzinfo is None:
-            raise ValueError("created_at must be timezone-aware")
+        ensure_utc(self.created_at, "created_at")
 
         # --- range already validated by TimeRange ---
 
@@ -140,8 +132,8 @@ class DatasetMetadata:
             source=data["source"],
             symbols=tuple(data["symbols"]),
             timeframes=tuple(Timeframe.from_string(v) for v in data["timeframes"]),
-            range=TimeRange(start=_parse_utc(data["from"]), end=_parse_utc(data["to"])),
-            created_at=_parse_utc(data["created_at"]),
+            range=TimeRange(start=parse_utc(data["from"]), end=parse_utc(data["to"])),
+            created_at=parse_utc(data["created_at"]),
             loader_version=data["loader_version"],
             schema_version=data["schema_version"],
             status=DatasetStatus(data["status"]) if "status" in data else DatasetStatus.CREATED,
@@ -196,6 +188,14 @@ class CandleBatch:
         if len(set(ids)) != len(ids):
             raise ValueError("candle_id must be unique within batch")
 
+        # requested_range containment (ЧТЗ §10, P1-2)
+        for c in self.candles:
+            if c.open_time < self.requested_range.start or c.close_time > self.requested_range.end:
+                raise ValueError(
+                    f"candle {c.candle_id} [{c.open_time.isoformat()}->{c.close_time.isoformat()}] "
+                    f"outside requested_range [{self.requested_range.start.isoformat()}->{self.requested_range.end.isoformat()}]"
+                )
+
     # ── helpers ────────────────────────────────────────────────
 
     @property
@@ -234,6 +234,6 @@ class CandleBatch:
             symbol=data["symbol"],
             timeframe=Timeframe.from_string(data["timeframe"]),
             source=data["source"],
-            requested_range=TimeRange(start=_parse_utc(rr["from"]), end=_parse_utc(rr["to"])),
+            requested_range=TimeRange(start=parse_utc(rr["from"]), end=parse_utc(rr["to"])),
             candles=tuple(Candle.from_dict(d) for d in data["candles"]),
         )

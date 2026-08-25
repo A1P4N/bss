@@ -8,18 +8,8 @@ from decimal import Decimal
 from typing import Any, Dict
 
 from .identifiers import CandleId
+from .time import ensure_utc, parse_utc
 from .timeframe import Timeframe
-
-
-def _parse_utc(iso_str: str) -> datetime:
-    """Parse an ISO 8601 string and convert to UTC.
-
-    Raises ValueError if the string lacks timezone info.
-    """
-    dt = datetime.fromisoformat(iso_str)
-    if dt.tzinfo is None:
-        raise ValueError("timestamps must be timezone-aware")
-    return dt.astimezone(timezone.utc)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -44,13 +34,10 @@ class Candle:
 
     def __post_init__(self) -> None:
         """Validate invariants after construction."""
-        # ── timezone awareness ──────────────────────────────
+        # ── timezone awareness + strict UTC ─────────────────
         for field_name in ("open_time", "close_time"):
             ts = getattr(self, field_name)
-            if ts.tzinfo is None:
-                raise ValueError(
-                    f"{field_name} must be timezone-aware UTC, got naive {ts}"
-                )
+            ensure_utc(ts, field_name)
 
         # ── OHLC consistency ────────────────────────────────
         if not (self.low <= self.high):
@@ -80,10 +67,12 @@ class Candle:
     def build_candle_id(symbol: str, timeframe: Timeframe, open_time: datetime) -> CandleId:
         """Deterministic candle ID based on symbol, timeframe and open time.
 
-        Uses ISO 8601 with microseconds for global uniqueness
-        (see Event Model v0.2 §2.1 — event_id must be globally unique).
+        Uses ISO 8601 UTC for global uniqueness (see Event Model v0.2 §2.1).
+        Accepts any tz-aware datetime, normalizes to UTC before formatting.
         """
-        ts = open_time.isoformat()
+        if open_time.tzinfo is None:
+            raise ValueError("open_time must be timezone-aware")
+        ts = open_time.astimezone(timezone.utc).isoformat()
         return CandleId(f"cnd_{symbol}_{timeframe.value}_{ts}")
 
     # ── serialisation ──────────────────────────────────────────
@@ -112,8 +101,8 @@ class Candle:
             instrument_id=data["instrument_id"],
             symbol=data["symbol"],
             timeframe=Timeframe.from_string(data["timeframe"]),
-            open_time=_parse_utc(data["open_time"]),
-            close_time=_parse_utc(data["close_time"]),
+            open_time=parse_utc(data["open_time"]),
+            close_time=parse_utc(data["close_time"]),
             open=Decimal(data["open"]),
             high=Decimal(data["high"]),
             low=Decimal(data["low"]),

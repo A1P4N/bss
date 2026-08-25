@@ -6,6 +6,7 @@ import dataclasses
 from datetime import datetime, timedelta, timezone
 from typing import Iterator, List, Tuple
 
+from .time import ensure_utc, parse_utc
 from .timeframe import Timeframe
 
 
@@ -21,10 +22,8 @@ class TimeRange:
     end: datetime
 
     def __post_init__(self) -> None:
-        if self.start.tzinfo is None:
-            raise ValueError("start must be timezone-aware, got naive")
-        if self.end.tzinfo is None:
-            raise ValueError("end must be timezone-aware, got naive")
+        ensure_utc(self.start, "start")
+        ensure_utc(self.end, "end")
         if self.start >= self.end:
             raise ValueError(
                 f"start ({self.start}) must be before end ({self.end})"
@@ -73,10 +72,10 @@ class TimeRange:
 
     @classmethod
     def from_tuple(cls, start_iso: str, end_iso: str) -> TimeRange:
-        """Create from ISO strings."""
+        """Create from ISO strings (accepts any offset, converts to UTC)."""
         return cls(
-            start=datetime.fromisoformat(start_iso).replace(tzinfo=timezone.utc),
-            end=datetime.fromisoformat(end_iso).replace(tzinfo=timezone.utc),
+            start=parse_utc(start_iso),
+            end=parse_utc(end_iso),
         )
 
     def __repr__(self) -> str:
