@@ -34,3 +34,15 @@ class DuplicateError(ValidationError):
 
 class GapError(ValidationError):
     """Gap detected (missing candles)."""
+
+
+class StorageError(LoaderError):
+    """Storage layer error (atomicity, checksum, immutability)."""
+
+
+class ImmutableViolation(StorageError):
+    """Attempt to mutate published READY version."""
+
+
+class CorruptChunkError(StorageError):
+    """Chunk is partially written or checksum mismatch."""
