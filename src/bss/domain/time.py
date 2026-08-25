@@ -6,8 +6,16 @@ from datetime import datetime, timezone
 
 
 def parse_utc(iso_str: str) -> datetime:
-    """Parse ISO 8601 and convert to UTC (requires tz-aware input)."""
-    dt = datetime.fromisoformat(iso_str)
+    """Parse ISO 8601 and convert to UTC (requires tz-aware input).
+
+    Supports 'Z' suffix as used in Event Model v0.2 examples
+    (e.g. 2026-08-23T00:15:00Z) and fractional seconds.
+    """
+    s = iso_str.strip()
+    # Replace Z/z with +00:00 for fromisoformat compatibility
+    if s.endswith("Z") or s.endswith("z"):
+        s = s[:-1] + "+00:00"
+    dt = datetime.fromisoformat(s)
     if dt.tzinfo is None:
         raise ValueError("timestamps must be timezone-aware")
     return dt.astimezone(timezone.utc)

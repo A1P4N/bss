@@ -148,3 +148,32 @@ class TestCandleBatchSerialization:
         }
         b = CandleBatch.from_dict(d)
         assert b.requested_range.start.hour == 7  # 10+03 -> 07 UTC
+
+    def test_non_aligned_range_allows_tail_candle(self):
+        """P1-03: 10:00-10:20/M15 with candle 10:15-10:30 must be allowed (open in range)."""
+        from bss.domain.time_range import TimeRange as TR
+
+        rr = TR(start=_utc(2025, 1, 1, 10, 0), end=_utc(2025, 1, 1, 10, 20))
+        c = _candle("SOLUSDT", Timeframe.M15, _utc(2025, 1, 1, 10, 15), _utc(2025, 1, 1, 10, 30))
+        # should not raise — open_time 10:15 is inside [10:00,10:20)
+        batch = CandleBatch(symbol="SOLUSDT", timeframe=Timeframe.M15, candles=(c,), source="binance", requested_range=rr)
+        assert len(batch) == 1
+
+    def test_open_time_outside_raises(self):
+        from bss.domain.time_range import TimeRange as TR
+
+        rr = TR(start=_utc(2025, 1, 1, 10, 0), end=_utc(2025, 1, 1, 10, 20))
+        c = _candle("SOLUSDT", Timeframe.M15, _utc(2025, 1, 1, 9, 45), _utc(2025, 1, 1, 10, 0))
+        with pytest.raises(ValueError, match="outside requested_range"):
+            CandleBatch(symbol="SOLUSDT", timeframe=Timeframe.M15, candles=(c,), source="binance", requested_range=rr)
+
+    def test_z_suffix_from_dict(self):
+        d = {
+            "symbol": "SOLUSDT",
+            "timeframe": "M15",
+            "source": "binance",
+            "requested_range": {"from": "2025-01-01T10:00:00Z", "to": "2025-01-01T11:00:00Z"},
+            "candles": [],
+        }
+        b = CandleBatch.from_dict(d)
+        assert b.requested_range.start.tzinfo == timezone.utc

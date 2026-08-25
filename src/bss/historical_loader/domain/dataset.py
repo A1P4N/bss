@@ -188,12 +188,12 @@ class CandleBatch:
                 pass
 
         # uniqueness is checked by DuplicateDetector, not here (allows validation to report)
-        # requested_range containment (ЧТЗ §10, P1-2)
+        # requested_range containment: open_time must be in [start, end) (ЧТЗ §10, P1-03)
+        # close_time may exceed end for last candle when range not aligned to timeframe — allowed
         for c in self.candles:
-            if c.open_time < self.requested_range.start or c.close_time > self.requested_range.end:
+            if c.open_time < self.requested_range.start or c.open_time >= self.requested_range.end:
                 raise ValueError(
-                    f"candle {c.candle_id} [{c.open_time.isoformat()}->{c.close_time.isoformat()}] "
-                    f"outside requested_range [{self.requested_range.start.isoformat()}->{self.requested_range.end.isoformat()}]"
+                    f"candle {c.candle_id} open_time {c.open_time.isoformat()} outside requested_range [{self.requested_range.start.isoformat()}->{self.requested_range.end.isoformat()})"
                 )
 
     # ── helpers ────────────────────────────────────────────────
