@@ -159,13 +159,10 @@ class CandleNormalizer:
 
         # deterministic ordering
         candles.sort(key=lambda c: c.open_time)
-        # check duplicates early (structured error)
-        seen = set()
-        for c in candles:
-            cid = str(c.candle_id)
-            if cid in seen:
-                raise NormalizationError(code="DUPLICATE_CANDLE", message=f"duplicate {cid}", context={"candle_id": cid})
-            seen.add(cid)
+        # NOTE: duplicate handling is unified as Validation concern (P0-3).
+        # Normalizer does NOT raise on duplicate — it passes batch through
+        # for DuplicateDetector/CandleValidator to report deterministically.
+        # No silent dedup (ЧТЗ §10) — duplicates are preserved.
 
         return CandleBatch(
             symbol=first_symbol,

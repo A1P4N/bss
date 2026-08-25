@@ -84,3 +84,27 @@ class TestGapDetector:
         gaps = self.det.find_gaps(batch)
         # missing 10:15,10:30,10:45 and 11:15,11:30,11:45 -> two segments
         assert len(gaps) == 2
+
+    def test_large_dataset_no_truncation(self):
+        """P0-1 regression: dataset >100k must not be truncated (AC-06)."""
+        # 3 years M15: ~109k candles >100k previous limit
+        rr = _range(_utc(2020, 1, 1), _utc(2023, 1, 1))
+        batch = CandleBatch(symbol="SOLUSDT", timeframe=Timeframe.M15, candles=(), source="binance", requested_range=rr)
+        exp = self.det.expected_count(batch)
+        assert exp > 100000, f"expected {exp} should be >100k for regression"
+        gaps = self.det.find_gaps(batch)
+        assert len(gaps) == 1
+        assert gaps[0].expected_candles == exp
+        assert gaps[0].actual_candles == 0
+        assert gaps[0].missing_from == rr.start
+        assert gaps[0].missing_to == rr.end
+
+    def test_large_dataset_with_few_candles(self):
+        """Large range with 2 actual candles must report correct gap count, not truncated."""
+        rr = _range(_utc(2020, 1, 1), _utc(2020, 1, 10))  # 9 days *96 =864
+        candles = (_candle(_utc(2020, 1, 1)), _candle(_utc(2020, 1, 9, 23, 45)))
+        batch = CandleBatch(symbol="SOLUSDT", timeframe=Timeframe.M15, candles=candles, source="binance", requested_range=rr)
+        exp = self.det.expected_count(batch)
+        gaps = self.det.find_gaps(batch)
+        total_missing = sum(g.expected_candles for g in gaps)
+        assert exp - len(candles) == total_missing

@@ -77,15 +77,13 @@ class GapDetector:
 
         # ensure UTC already enforced
         interval = timedelta(minutes=batch.timeframe.duration_minutes())
-        # build expected open_times set
+        # build expected open_times — streaming, no truncation
+        # For large ranges this is O(N) in expected count but batch is chunked, not whole dataset
         expected_times = []
         cursor = batch.requested_range.start
         while cursor < batch.requested_range.end:
             expected_times.append(cursor)
             cursor = cursor + interval
-            # safeguard: prevent infinite loop
-            if len(expected_times) > 100000:
-                break
 
         actual_map = {c.open_time: c for c in batch.candles}
         gaps: List[Gap] = []

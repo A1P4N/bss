@@ -99,15 +99,30 @@ class TestNormalizeBatch:
             self.norm.normalize_batch(raws, rr, source="binance")
         assert exc.value.code == "MISMATCHED_SYMBOL"
 
-    def test_batch_duplicate_raises(self):
+    def test_batch_duplicate_is_validation_not_normalization(self):
+        """P0-3 unified semantics: duplicate is Validation, not NormalizationError (AC-03/AC-08)."""
         rr = _range()
         raws = [
             RawCandle(symbol="SOLUSDT", timeframe="M15", open_time="2025-01-01T10:00:00+00:00", close_time="2025-01-01T10:15:00+00:00", open=100, high=101, low=99, close=100, volume=1000),
             RawCandle(symbol="SOLUSDT", timeframe="M15", open_time="2025-01-01T10:00:00+00:00", close_time="2025-01-01T10:15:00+00:00", open=100, high=101, low=99, close=100, volume=1000),
         ]
-        with pytest.raises(NormalizationError) as exc:
-            self.norm.normalize_batch(raws, rr, source="binance")
-        assert exc.value.code == "DUPLICATE_CANDLE"
+        # Normalizer must NOT raise — passes to CandleBatch with duplicates
+        batch = self.norm.normalize_batch(raws, rr, source="binance")
+        assert len(batch.candles) == 2
+        # Duplicate is caught by DuplicateDetector / Validator, not Normalizer (no silent dedup)
+        from bss.historical_loader.domain.duplicate_detector import DuplicateDetector
+        from bss.historical_loader.domain.validation import CandleValidator
+
+        assert DuplicateDetector().has_duplicates(batch)
+        res = CandleValidator().validate(batch)
+        assert not res.is_valid
+        assert any(i.code == "DUPLICATE" for i in res.issues)
+        # deterministic: second validation equal
+        res2 = CandleValidator().validate(batch)
+        assert res == res2
+        # idempotent re-normalization gives same result
+        batch2 = self.norm.normalize_batch(raws, rr, source="binance")
+        assert batch == batch2
 
     def test_empty_batch_raises(self):
         rr = _range()
