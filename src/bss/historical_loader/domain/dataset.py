@@ -178,16 +178,16 @@ class CandleBatch:
             if not c.open_time.tzinfo or not c.close_time.tzinfo:
                 raise ValueError("candle timestamps must be timezone-aware")
 
-        # sorted by open_time strictly increasing
+        # sorted by open_time strictly increasing (gaps/duplicates handled by validators, not here)
         for i in range(1, len(self.candles)):
-            if self.candles[i - 1].open_time >= self.candles[i].open_time:
-                raise ValueError("candles must be strictly sorted by open_time")
+            if self.candles[i - 1].open_time > self.candles[i].open_time:
+                raise ValueError("candles must be sorted by open_time")
+            if self.candles[i - 1].open_time == self.candles[i].open_time:
+                # allow equal open_time to surface as duplicate via DuplicateDetector
+                # but keep deterministic order: still require non-decreasing
+                pass
 
-        # unique candle_id
-        ids = [str(c.candle_id) for c in self.candles]
-        if len(set(ids)) != len(ids):
-            raise ValueError("candle_id must be unique within batch")
-
+        # uniqueness is checked by DuplicateDetector, not here (allows validation to report)
         # requested_range containment (ЧТЗ §10, P1-2)
         for c in self.candles:
             if c.open_time < self.requested_range.start or c.close_time > self.requested_range.end:

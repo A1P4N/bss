@@ -89,12 +89,11 @@ class TestCandleBatchCreation:
         with pytest.raises(ValueError, match="sorted"):
             CandleBatch(symbol="SOLUSDT", timeframe=Timeframe.M15, candles=(c1, c2), source="binance", requested_range=_range())
 
-    def test_duplicate_candle_id_raises(self):
-        # same open_time gives same deterministic id if suffix not varied
+    def test_duplicate_candle_id_allowed_but_detectable(self):
+        # CandleBatch now allows duplicates for validation layer to detect (DuplicateDetector)
         dt = _utc(2025, 1, 1, 10, 0)
         c1 = _candle("SOLUSDT", Timeframe.M15, dt, _utc(2025, 1, 1, 10, 15))
         c2 = _candle("SOLUSDT", Timeframe.M15, _utc(2025, 1, 1, 10, 15), _utc(2025, 1, 1, 10, 30))
-        # force duplicate id
         c2_dup = Candle(
             candle_id=c1.candle_id,
             instrument_id=c2.instrument_id,
@@ -108,8 +107,11 @@ class TestCandleBatchCreation:
             close=c2.close,
             volume=c2.volume,
         )
-        with pytest.raises(ValueError, match="unique"):
-            CandleBatch(symbol="SOLUSDT", timeframe=Timeframe.M15, candles=(c1, c2_dup), source="binance", requested_range=_range())
+        batch = CandleBatch(symbol="SOLUSDT", timeframe=Timeframe.M15, candles=(c1, c2_dup), source="binance", requested_range=_range())
+        # batch creation succeeds; duplicate is detectable via DuplicateDetector
+        from bss.historical_loader.domain.duplicate_detector import DuplicateDetector
+
+        assert DuplicateDetector().has_duplicates(batch)
 
 
 class TestCandleBatchSerialization:
