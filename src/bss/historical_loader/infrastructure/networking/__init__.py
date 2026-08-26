@@ -1,0 +1,1 @@
+"""Networking primitives (Retry, RateLimiter, Concurrency) — infrastructure, no domain import."""

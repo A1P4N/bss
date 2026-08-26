@@ -633,57 +633,113 @@ A-09. Mother OB semantic rules are not yet precise enough for final acceptance; 
 
 Does a completed M15 push require every higher-level cascade link to have a tested source zone, or can a structurally complete M15 chain still push with `CHAIN_INCOMPLETE`?
 
+### Ответ
+
+При определении сломов на M15 использовать правило буфера. Валидный слом на M15 по четырём точкам может произойти без чистого теста ордер-блоков старшего таймфрейма. 
+
 ## Q-02 Swing definition
 
 What exact front/back candle parameters define a confirmed swing on each timeframe?
+
+### Ответ
+
+Использование свингов перенести на будущее.
 
 ## Q-03 Mother OB
 
 What exact machine предикаты define `start of struggle`, `loss of initiative`, and `reversal`?
 
+### Ответ
+
+В первой версии Система должна поддерживать идентификацию материнской формации  только `SIMPLE` — последняя валидная встречная свеча перед импульсом. Где под словом `валидная` понимается - свеча, на примере бычьей, закрытие которой произошло выше середины диапазона от low до high. Для шорта зеркально. 
+
 ## Q-04 OBLS
 
 What exactly counts as the "last opposing candle" if several consecutive opposing candles precede the impulse?
+
+### Ответ
+
+Последняя валидная свеча перед импульсом.
 
 ## Q-05 Test
 
 Does a test occur intrabar, on wick touch, or only after candle close? Is first touch enough?
 
+### Ответ
+
+Оба варианта.
+
 ## Q-06 Buffer
 
 Which exact value is used initially: 2x, 3x, or a calibrated value? Which исторический spread source is authoritative?
+
+### Ответ
+
+в файле конфигурации с последующей калибровкой TBD
 
 ## Q-07 Same-candle conflicts
 
 If a candle crosses death level and later reaches a test boundary, which event wins for strategy state?
 
+### Ответ
+
+побеждает смерть.
+
 ## Q-08 Multiple concurrent scenarios
 
 Can multiple LONG/HIGH-level scenarios for the same symbol coexist, or is only the most recent one retained?
+
+### Ответ
+
+Нет, не может.
 
 ## Q-09 Сценарий reset
 
 After death on H1, should all lower-timeframe objects be deleted immediately or retained in audit/history only?
 
+### Ответ
+
+Удаляй сразу.
+
 ## Q-10 News flag
 
 What exact source and timestamp semantics qualify as "red news nearby"?
+
+### Ответ
+
+TBD
 
 ## Q-11 Пуш deduplication
 
 What constitutes the same setup if the engine restarts or the same M15 bar is reprocessed?
 
+### Ответ
+
+Вопрос не понятен. Переформулируй на русском языке
+
 ## Q-12 TigerTrade contract
 
 What exact API/object model and transport mechanisms are available in the target TigerTrade version?
+
+### Ответ
+
+Тебе необходимо изучить документацию из открытых источников.
 
 ## Q-13 Исторический data
 
 What period is required for the first бэктест and what is the acceptable source of bid/ask history?
 
+### Ответ
+
+временной промежуток должен настраиваться через конфигурационный файл. источник Binance.
+
 ## Q-14 Acceptance
 
 How many examples are required before the system is trusted for shadow/боевой режим monitoring: 100, 300, or another number?
+
+### Ответ
+
+300
 
 ---
 
