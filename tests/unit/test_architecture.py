@@ -30,10 +30,13 @@ def test_event_model_no_networking():
 
 
 def test_loader_no_replay():
-    # historical_loader should not import replay
+    # historical_loader domain/application/infrastructure should not import replay
+    # CLI is allowed to import replay as thin adapter (AGENTS §26)
     import pathlib as p
 
     for path in p.Path("src/bss/historical_loader").rglob("*.py"):
+        if "cli" in path.parts:
+            continue
         txt = path.read_text()
         assert "from bss.replay" not in txt
         assert "import replay" not in txt

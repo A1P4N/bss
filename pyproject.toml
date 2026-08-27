@@ -12,6 +12,9 @@ description = "BSS Structural Monitoring Agent"
 requires-python = ">=3.11"
 dependencies = []
 
+[project.scripts]
+loader = "bss.historical_loader.cli.main:main"
+
 [project.optional-dependencies]
 test = [
     "pytest>=8",
