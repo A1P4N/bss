@@ -1,28 +1,44 @@
 @startuml C4_Deployment_MVP
+
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Deployment.puml
+
 LAYOUT_TOP_DOWN()
+
 title BSS — C4 Deployment — MVP
+
 Deployment_Node(host, "Рабочая машина / сервер", "Linux / Windows") {
-Deployment_Node(runtime, "BSS Runtime", "Python") {
-Container(loader, "Historical Data Loader")
-Container(replay, "Replay Engine")
-Container(analysis, "Analysis Engine")
+
+    Deployment_Node(runtime, "BSS Runtime", "Python") {
+        Container(loader, "Historical Data Loader")
+        Container(replay, "Replay Engine")
+        Container(analysis, "Analysis Engine")
+    }
+
+    Deployment_Node(storage, "Local Storage", "Filesystem") {
+        Container(raw_storage, "Raw Storage")
+        Container(normalized_dataset, "Normalized Dataset")
+        Container(event_stream, "Event Stream")
+        Container(state_store, "State / Audit")
+    }
 }
-Deployment_Node(storage, "Local Storage", "Filesystem") {
-Container(raw, "Raw Storage")
-Container(dataset, "Normalized Dataset")
-Container(events, "Event Stream")
-Container(state, "State / Audit")
-}}
-System_Ext(source, "Исторический источник данных")
-System_Ext(tiger, "TigerTrade")
-Rel(source, loader, "HTTPS/API")
-Rel(loader, raw, "write")
-Rel(loader, dataset, "write")
-Rel(dataset, replay, "read")
+
+System_Ext(history_source, "Исторический источник данных")
+System_Ext(tigertrade, "TigerTrade")
+
+Rel(history_source, loader, "HTTPS/API")
+
+Rel(loader, raw_storage, "write")
+Rel(loader, normalized_dataset, "write")
+
+Rel(normalized_dataset, replay, "read")
+
 Rel(replay, analysis, "CANDLE_CLOSED")
-Rel(analysis, events, "write")
-Rel(events, state, "write")
-Rel(events, tiger, "integration")
+
+Rel(analysis, event_stream, "write")
+Rel(event_stream, state_store, "write")
+
+Rel(event_stream, tigertrade, "integration")
+
 SHOW_LEGEND()
+
 @enduml

@@ -22,6 +22,7 @@ from ..domain.dataset import CandleBatch, DatasetMetadata, DatasetStatus
 from ..domain.download_job import DownloadJob, JobStatus
 from ..domain.errors import RetryExhaustedError
 from ..domain.gap_detector import GapDetector
+from ..domain.gap_event import DataIntegrityGapEvent
 from ..domain.interfaces.checkpoint_storage import CheckpointStorage
 from ..domain.interfaces.dataset_storage import DatasetStorage
 from ..domain.interfaces.historical_source import HistoricalSource
@@ -63,6 +64,7 @@ class DownloadService:
         clock,  # Clock (monotonic for rate/retry, UTC for checkpoint)
         chunk_interval: timedelta | None = None,
         gap_detector: GapDetector | None = None,
+        gap_event_storage=None,  # GapEventFilesystemStorage optional
     ):
         self.source = source
         self.normalizer = normalizer
@@ -77,6 +79,7 @@ class DownloadService:
         self.clock = clock
         self.chunk_interval = chunk_interval or timedelta(days=1)
         self.gap_detector = gap_detector or GapDetector()
+        self.gap_event_storage = gap_event_storage
 
     def create_job(
         self,
@@ -145,13 +148,19 @@ class DownloadService:
         # idempotent re-run of COMPLETED
         if job.status == JobStatus.COMPLETED:
             return job
-        # transition CREATED/PAUSED/FAILED -> RUNNING if needed
-        if job.status == JobStatus.CREATED:
+        # transition CREATED/PAUSED/FAILED -> RUNNING (P1-01 fix)
+        if job.status in (JobStatus.CREATED, JobStatus.FAILED, JobStatus.PAUSED):
+            # increment attempt for resume from FAILED/PAUSED
+            new_attempt = job.attempt + 1 if job.status in (JobStatus.FAILED, JobStatus.PAUSED) else job.attempt
             job = job.transition(JobStatus.RUNNING, now)
+            if new_attempt != job.attempt:
+                import dataclasses
+
+                job = dataclasses.replace(job, attempt=new_attempt, updated_at=now)
             self.job_storage.save(job)
-            # also update metadata to DOWNLOADING
+            # also update metadata to DOWNLOADING if not already
             meta = self.metadata_storage.get(job.dataset_id, job.dataset_version)
-            if meta:
+            if meta and meta.status in (DatasetStatus.CREATED, DatasetStatus.INVALID):
                 from dataclasses import replace
 
                 self.metadata_storage.save(replace(meta, status=DatasetStatus.DOWNLOADING))
@@ -261,6 +270,7 @@ class DownloadService:
         # After all chunks, dataset-level validation
         # Stream all normalized candles for dataset
         all_candles = list(self.normalized_storage.stream(job.dataset_id, job.dataset_version, job.symbol, job.timeframe, start=job.range.start, end=job.range.end))
+        all_candles = sorted(all_candles, key=lambda c: c.open_time)
         # Build a batch for dataset-level validation (use requested_range = job.range)
         # Create a temporary CandleBatch for validation
         dataset_batch = CandleBatch(symbol=job.symbol, timeframe=job.timeframe, candles=tuple(all_candles), source=job.source, requested_range=job.range)
@@ -281,14 +291,51 @@ class DownloadService:
             # checkpoint status COMPLETED? Keep as is, is_complete true
         else:
             # DATA_INTEGRITY_GAP only on dataset-level temporal validation
+            # Persist minimal gap events
+            if self.gap_event_storage is not None:
+                for gap in result.gaps:
+                    evt = DataIntegrityGapEvent.create(
+                        dataset_id=job.dataset_id,
+                        dataset_version=job.dataset_version,
+                        symbol=job.symbol,
+                        timeframe=job.timeframe,
+                        gap_from=gap.missing_from,
+                        gap_to=gap.missing_to,
+                        expected=gap.expected_candles,
+                        actual=gap.actual_candles,
+                        source="loader",
+                        event_time=gap.missing_from,
+                        processed_at=now,
+                    )
+                    self.gap_event_storage.append(evt)
             # Mark dataset INVALID, job FAILED
             if meta:
                 self.metadata_storage.save(replace(meta, status=DatasetStatus.INVALID))
             job = job.transition(JobStatus.FAILED, now)
             self.job_storage.save(job)
-            # Raise to signal gap (caller can inspect result)
-            # We don't raise here for happy path tests; but for gap case, we need to indicate
-            # For now, if gaps exist, we consider job FAILED but not exception
-            pass
 
         return job
+
+    def download_range(self, dataset_id: DatasetId, version: DatasetVersion, symbol: str, timeframe: Timeframe, start: datetime, end: datetime, now: datetime) -> CandleBatch:
+        """Download a single recovery range (used by RecoveryService). Sequential, no checkpoint update here."""
+        ensure_utc(start, "start")
+        ensure_utc(end, "end")
+        ensure_utc(now, "now")
+        rr = TimeRange(start=start, end=end)
+        self.rate_limiter.acquire()
+
+        def _download():
+            return self.source.download(symbol, timeframe, start, end)
+
+        batch = self.retry_policy.execute(_download, self.clock)
+        if not isinstance(batch, CandleBatch):
+            batch = self.normalizer.normalize_batch(batch, rr, source="recovery")
+        # validate chunk (no gap check for single recovery chunk? still check duplicates)
+        res = self.validator.validate(batch)
+        chunk_issues = [i for i in res.issues if i.code not in ("GAP", "EMPTY_BATCH")]
+        if chunk_issues:
+            raise ValueError(f"recovery chunk validation failed: {chunk_issues}")
+        # write storage (idempotent)
+        self.raw_storage.write_raw(batch)
+        norm_path = self.normalized_storage.write_batch(batch, dataset_id, version)
+        return batch
