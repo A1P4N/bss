@@ -44,20 +44,13 @@ class ReplayDataSource:
         pa = processed_at or datetime.now(timezone.utc)
         ensure_utc(pa, "processed_at")
 
-        # Streaming read — do not load all into memory at once for large datasets
-        # For MVP we collect for requested_range, sort deterministically, then yield
-        # This keeps bounded memory per chunk (chunks are per day), but for requested_range we need sorted
-        # To keep true streaming, we would merge sorted chunks via heap; for now collect+sort is deterministic and simple
-        candles = list(
-            self.storage.stream(
-                dataset_id, dataset_version, symbol, timeframe, start=requested_range.start, end=requested_range.end
-            )
-        )
-        # Deterministic ordering: sort by open_time, not filesystem order, not event_id
-        candles.sort(key=lambda c: c.open_time)
-
+        # Streaming read — O(1) memory, no full materialization
+        # Deterministic ordering is guaranteed by NormalizedStorage.stream (sorted rglob + per-file sorted)
+        # Replay relies on storage contract, does not re-sort entire dataset
         # No look-ahead: each event created only from current candle, no future access
-        for candle in candles:
+        for candle in self.storage.stream(
+            dataset_id, dataset_version, symbol, timeframe, start=requested_range.start, end=requested_range.end
+        ):
             # Range semantics [start, end): open_time must be in range (already filtered by storage, but double-check)
             if not (requested_range.start <= candle.open_time < requested_range.end):
                 continue
