@@ -24,6 +24,7 @@ timeframes:
 source:
   name: binance          # source adapter name
   base_url: "https://api.binance.com"
+  timeout_seconds: 10.0
   rate_limit:
     requests_per_second: 5
     max_parallel_requests: 4
@@ -53,6 +54,11 @@ storage:
     normalized: "parquet"
     metadata: "json"
     events: "jsonl"
+
+# ── Loader ──────────────────────────────────────────────────
+loader:
+  chunk_interval: "1d"  # e.g. 1d, 12h, 1h
+  # chunk_interval must keep <=1000 candles per chunk (M15 1d=96, H1 1d=24, D1 1d=1)
 
 # ── Dataset ─────────────────────────────────────────────────
 dataset:

@@ -10,7 +10,7 @@ name = "bss"
 version = "0.1.0"
 description = "BSS Structural Monitoring Agent"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = ["pyyaml>=6.0"]
 
 [project.scripts]
 loader = "bss.historical_loader.cli.main:main"

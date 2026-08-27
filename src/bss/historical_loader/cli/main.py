@@ -18,8 +18,9 @@ def _parse_time(s: str):
     return parse_utc(s)
 
 
-def _make_services(base_path: Path, source=None):
+def _make_services(base_path: Path, source=None, config=None):
     """Factory for DownloadService + Replay + Recovery with filesystem storages."""
+    from bss.config.loader import load_config
     from bss.historical_loader.domain.normalization import CandleNormalizer
     from bss.historical_loader.domain.validation import CandleValidator
     from bss.historical_loader.infrastructure.networking.clock import SystemClock
@@ -37,15 +38,26 @@ def _make_services(base_path: Path, source=None):
     from bss.historical_loader.application.recovery_service import RecoveryService
     from bss.replay.replay_data_source import ReplayDataSource
 
+    cfg = config or load_config()
     # Use synthetic source if not provided (for E2E)
     if source is None:
-        source = _synthetic_source()
+        if cfg.source_name == "binance":
+            from bss.historical_loader.infrastructure.sources.binance.adapter import BinanceSource
+
+            source = BinanceSource(base_url=cfg.source_base_url, timeout=cfg.source_timeout)
+        else:
+            source = _synthetic_source()
 
     clock = SystemClock()
-    rate = RateLimiter(rps=5, clock=clock, capacity=1)
-    conc = ConcurrencyLimiter(max_parallel=4)
+    rate = RateLimiter(rps=cfg.rate_limit_rps, clock=clock, capacity=1)
+    conc = ConcurrencyLimiter(max_parallel=cfg.rate_limit_max_parallel)
     limiter = RequestLimiter(rate, conc)
-    retry = RetryPolicy(max_attempts=5, initial_delay=0.1, max_delay=5.0, factor=2.0)
+    retry = RetryPolicy(
+        max_attempts=cfg.retry_max_attempts,
+        initial_delay=cfg.retry_initial_delay,
+        max_delay=cfg.retry_max_delay,
+        factor=cfg.retry_backoff_factor,
+    )
 
     raw = RawFilesystemStorage(base_path=base_path)
     norm = NormalizedFilesystemStorage(base_path=base_path)
@@ -66,6 +78,7 @@ def _make_services(base_path: Path, source=None):
         rate_limiter=rate,
         retry_policy=retry,
         clock=clock,
+        chunk_interval=cfg.chunk_interval,
         gap_event_storage=gap_store,
     )
     replay_ds = ReplayDataSource(norm)
@@ -131,8 +144,25 @@ def cmd_download(args):
         end = parse_utc(args.to_time)
         rr = TimeRange(start=start, end=end)
         now = datetime.now(timezone.utc)
-        download_service, _, _ = _make_services(base)
-        job = download_service.create_job(ds_id, ver, "synthetic", symbol, tf, rr, now=now)
+        # source selection via --source, default from config
+        from bss.config.loader import load_config
+
+        cfg = load_config()
+        source_name = getattr(args, "source", None) or cfg.source_name
+        # create source via factory (binance vs synthetic)
+        source = None
+        if source_name == "binance":
+            from bss.historical_loader.infrastructure.sources.binance.adapter import BinanceSource
+
+            source = BinanceSource(base_url=cfg.source_base_url, timeout=cfg.source_timeout)
+        elif source_name == "synthetic":
+            source = None  # _make_services will create synthetic
+        else:
+            source = None
+        download_service, _, _ = _make_services(base, source=source, config=cfg)
+        # Use source_name for job metadata
+        job_source = source_name
+        job = download_service.create_job(ds_id, ver, job_source, symbol, tf, rr, now=now)
         result = download_service.run(job.job_id, now=datetime.now(timezone.utc))
         sys.stdout.write(json.dumps({"job_id": result.job_id, "status": result.status.value, "dataset_id": str(ds_id), "version": str(ver)}) + "\n")
         sys.exit(0)
@@ -206,6 +236,7 @@ def build_parser():
     p_dl.add_argument("--timeframe", required=True)
     p_dl.add_argument("--from", required=True, dest="from_time")
     p_dl.add_argument("--to", required=True, dest="to_time")
+    p_dl.add_argument("--source", required=False, dest="source", default=None, help="binance|synthetic (default from config)")
     p_dl.set_defaults(func=cmd_download)
 
     p_res = sub.add_parser("resume", help="resume job")
